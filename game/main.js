@@ -3,6 +3,7 @@ import {
   WORLD, genWorld, isLand, clamp, dist2, fmtCash, fogDensity, skyColor,
   createState, startMission, nextMissionId, updateMission, currentMission, currentObjective,
   addWanted, decayWanted, refreshPatrol, gatorHit, damagePlayer, spotlightRepel,
+  gatorAggression, gatorHuntRange,
   buyUpgrade, topSpeed, useCrew, tickCooldowns,
   respectRank, saveGame, loadGame, MISSIONS, ACT_NAMES, UPGRADES,
 } from './logic.js';
@@ -169,11 +170,14 @@ function applyShot(n) {
       if (state.patrol[0]) put(state.patrol[0], 32, 20);
       if (state.patrol[1]) put(state.patrol[1], 24, -28);
       if (state.patrol[2]) put(state.patrol[2], -30, -18);
-      if (state.heli) { state.heli.x = state.pos.x + fx * 90; state.heli.z = state.pos.z + fz * 90; state.heli.h = 48; }
+      if (state.heli) { state.heli.x = state.pos.x + fx * 70; state.heli.z = state.pos.z + fz * 70; state.heli.h = 34; }
     }
     state.spotlight = true; state.cash = 1840; state.respect = 96; state.heat = 62;
-    state.gators[0].x = state.pos.x + 14; state.gators[0].z = state.pos.z + 22;
-    state.gators[1].x = state.pos.x - 18; state.gators[1].z = state.pos.z + 30;
+    // gators staged close to the boat, flanking it, so their backs and eyes are
+    // in frame instead of lost in the fog 20m+ out
+    state.gators[0].x = state.pos.x + 8; state.gators[0].z = state.pos.z + 14;
+    state.gators[1].x = state.pos.x - 10; state.gators[1].z = state.pos.z + 16;
+    state.gators[2].x = state.pos.x + 15; state.gators[2].z = state.pos.z + 6;
   } else if (n === 2) { // town at night — truck parked facing the neon bar
     state.timeOfDay = 0.35; state.vehicle = 'truck';
     state.pos = { x: 826, z: -18 }; state.angle = 2.63; state.speed = 0;
@@ -358,11 +362,12 @@ function stepAI(dt) {
     const dPlayer = Math.sqrt(dist2(g.x, g.z, state.pos.x, state.pos.z));
     const inWater = !isLand(state.pos.x, state.pos.z);
     if (state.spotlight && dPlayer < (state.upgrades.light ? 26 : 16)) g.state = 'flee';
-    else if (inWater && dPlayer < 26 && state.vehicle !== 'truck') g.state = 'hunt';
+    else if (inWater && dPlayer < gatorHuntRange(state.timeOfDay) && state.vehicle !== 'truck') g.state = 'hunt';
     else if (g.state !== 'patrol' && dPlayer > 40) g.state = 'patrol';
     if (g.state === 'hunt') {
       const a = Math.atan2(state.pos.x - g.x, state.pos.z - g.z);
-      g.a = a; g.x += Math.sin(a) * g.speed * 2.2 * dt; g.z += Math.cos(a) * g.speed * 2.2 * dt;
+      // night-aggressive gators: faster closing speed toward midnight
+      g.a = a; g.x += Math.sin(a) * g.speed * 2.2 * gatorAggression(state.timeOfDay) * dt; g.z += Math.cos(a) * g.speed * 2.2 * gatorAggression(state.timeOfDay) * dt;
     } else if (g.state === 'flee') {
       const a = Math.atan2(g.x - state.pos.x, g.z - state.pos.z);
       g.x += Math.sin(a) * g.speed * 2.5 * dt; g.z += Math.cos(a) * g.speed * 2.5 * dt;
@@ -414,8 +419,8 @@ function stepAI(dt) {
     const h = state.heli;
     h.sweep += dt * 0.5;
     // photo mode: the heli hovers ahead of the player so its cone is in frame
-    const tx = SHOT ? state.pos.x + Math.sin(state.angle) * 90 : state.pos.x + Math.sin(h.sweep) * 30;
-    const tz = SHOT ? state.pos.z + Math.cos(state.angle) * 90 : state.pos.z + Math.cos(h.sweep * 0.7) * 30;
+    const tx = SHOT ? state.pos.x + Math.sin(state.angle) * 70 : state.pos.x + Math.sin(h.sweep) * 30;
+    const tz = SHOT ? state.pos.z + Math.cos(state.angle) * 70 : state.pos.z + Math.cos(h.sweep * 0.7) * 30;
     h.x += (tx - h.x) * dt * 0.5;
     h.z += (tz - h.z) * dt * 0.5;
     h.a = Math.atan2(state.pos.x - h.x, state.pos.z - h.z);
@@ -495,6 +500,16 @@ function render(now) {
   renderer.draw(meshes.water, mIdentity(), { water: true });
   renderer.draw(meshes.land, mIdentity());
   renderer.draw(meshes.glow, mIdentity(), { emissive: true });
+  // dawn water detail: at pre-dawn/dawn the open water was one flat dark sheet.
+  // Lay a warm glitter field + a sun-path of light pools ahead of the player so
+  // the fajar frame has reflection and ripple to look at, not empty black water.
+  if (state.timeOfDay > 0.66) {
+    const gx = state.pos.x + fx * 42, gz = state.pos.z + fz * 42;
+    renderer.draw(ent.glitter, mModel(gx, 0.15, gz, state.angle), { blend: true, emissive: true });
+    for (let i = 1; i <= 3; i++) {
+      renderer.draw(ent.pool, mModel(state.pos.x + fx * (18 + i * 14), 0.18, state.pos.z + fz * (18 + i * 14), 0, 1.4 - i * 0.25, 1, 1.4 - i * 0.25), { blend: true });
+    }
+  }
   for (const fb of fogBankPositions(t)) {
     renderer.draw(meshes.fogBank, mModel(fb.x, fb.y, fb.z, fb.yaw, fb.sx, 0.4, 1), { blend: true });
   }
@@ -505,6 +520,8 @@ function render(now) {
   for (const p of world.peds) renderer.draw(ent.person, mModel(p.x, 0.5, p.z, p.a));
   for (const g of state.gators) {
     renderer.draw(ent.gator, mModel(g.x, 0.15, g.z, g.a));
+    // faint wake ring under each gator so the body reads against dark water
+    renderer.draw(ent.pool, mModel(g.x, 0.12, g.z, 0, 0.55, 1, 0.55), { blend: true });
     // glowing eyes above the water — the gator's tell at night
     const fx = Math.sin(g.a), fz = Math.cos(g.a);
     const ex = g.x + fx * 2.7, ez = g.z + fz * 2.7;
@@ -527,7 +544,11 @@ function render(now) {
     renderer.draw(ent.heli, mModel(h.x, h.h, h.z, h.a || 0));
     renderer.draw(ent.rotor, mModel(h.x, h.h + 1.6, h.z, t * 18));
     const tx = state.pos.x + Math.sin(h.sweep) * 12, tz = state.pos.z + Math.cos(h.sweep * 0.7) * 12;
+    // layered beam: wide faint halo outside, mid cone, bright narrow core —
+    // a directed shaft of light sweeping the fog, not one pale triangle
+    renderer.draw(ent.coneHalo, mModel(h.x, h.h - 1, h.z, 0), { blend: true });
     renderer.draw(ent.cone, mModel(h.x, h.h - 1, h.z, 0), { blend: true });
+    renderer.draw(ent.coneCore, mModel(h.x, h.h - 1, h.z, 0), { blend: true });
     renderer.draw(ent.pool, mModel(h.x, 0.25, h.z, 0), { blend: true });
   }
   if (state.spotlight) {

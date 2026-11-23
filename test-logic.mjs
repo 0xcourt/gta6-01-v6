@@ -4,6 +4,7 @@
 import {
   createState, startMission, updateMission, currentMission, currentObjective,
   addWanted, patrolForWanted, refreshPatrol, gatorHit, damagePlayer,
+  gatorAggression, gatorHuntRange,
   pickupCargo, deliverCargo, buyUpgrade, topSpeed, useCrew,
   respectRank, saveGame, loadGame, MISSIONS, WORLD,
 } from './game/logic.js';
@@ -143,6 +144,31 @@ function goto(state, x, z) { state.pos = { x, z }; }
   check('Delia has a cooldown', useCrew(s, 'delia') === false);
   check('Sable reveals patrols', useCrew(s, 'sable') === true && s.crew.sableActive > 0);
   check('Sable has a cooldown', useCrew(s, 'sable') === false);
+}
+
+// --- 8. Night-aggressive gators ----------------------------------------------------
+{
+  check('gator aggression is 1.0 at the dusk edge', gatorAggression(0) === 1, 'agg=' + gatorAggression(0));
+  check('gator aggression is already rising at dusk', gatorAggression(0.12) > 1 && gatorAggression(0.12) < gatorAggression(0.5), 'agg=' + gatorAggression(0.12).toFixed(3));
+  check('gator aggression peaks at midnight', Math.abs(gatorAggression(0.5) - 1.6) < 1e-9, 'agg=' + gatorAggression(0.5));
+  check('gator aggression back to 1.0 at dawn', gatorAggression(1) === 1, 'agg=' + gatorAggression(1));
+  check('gator hunt range grows toward midnight', gatorHuntRange(0.5) > gatorHuntRange(0.12) && gatorHuntRange(0.5) > gatorHuntRange(0.95),
+    `range dusk=${gatorHuntRange(0.12).toFixed(1)} midnight=${gatorHuntRange(0.5).toFixed(1)} dawn=${gatorHuntRange(0.95).toFixed(1)}`);
+  const hitAt = (t) => {
+    const s = createState(1337);
+    s.vehicle = 'airboat'; s.pos = { x: 0, z: 0 }; s.timeOfDay = t;
+    const before = s.health + s.armor;
+    gatorHit(s, { x: 2, z: 0, cool: 0, state: 'patrol' });
+    return before - (s.health + s.armor);
+  };
+  check('midnight gator bite hurts more than a dusk bite', hitAt(0.5) > hitAt(0.12), `dusk lost ${hitAt(0.12)}, midnight lost ${hitAt(0.5)}`);
+  check('armor still reduces the midnight bite', (() => {
+    const s = createState(1337); s.cash = 2000; buyUpgrade(s, 'armor');
+    s.vehicle = 'airboat'; s.pos = { x: 0, z: 0 }; s.timeOfDay = 0.5;
+    const before = s.health + s.armor;
+    gatorHit(s, { x: 2, z: 0, cool: 0, state: 'patrol' });
+    return before - (s.health + s.armor) === 11; // 7 base + 4 night
+  })());
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

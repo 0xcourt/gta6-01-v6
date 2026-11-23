@@ -409,12 +409,26 @@ export function refreshPatrol(state) {
 
 // ---------------------------------------------------------------- gators & damage
 
+// Gators hunt harder at night: aggression peaks at midnight, lowest at dusk/dawn.
+// 1.0 at the edges of the night, 1.6 at midnight (t = 0.5). Drives both the
+// hunt range and the hunt speed, so the marsh genuinely gets more dangerous
+// as the night deepens instead of treating every hour the same.
+export function gatorAggression(t) {
+  const k = clamp(t, 0, 1);
+  return 1 + 0.6 * Math.sin(k * Math.PI);
+}
+export function gatorHuntRange(t) {
+  return 26 * gatorAggression(t);
+}
+
 export function gatorHit(state, gator) {
   if (gator.cool > 0) return false;
   const d2 = dist2(state.pos.x, state.pos.z, gator.x, gator.z);
   if (d2 > 7 * 7) return false;
   if (state.vehicle === 'truck' && isLand(state.pos.x, state.pos.z)) return false;
-  const dmg = state.upgrades.armor ? 7 : 12;
+  // Midnight bites hurt more: the night-aggression bonus stacks on the base hit.
+  const night = state.timeOfDay >= 0.33 && state.timeOfDay < 0.66;
+  const dmg = (state.upgrades.armor ? 7 : 12) + (night ? 4 : 0);
   damagePlayer(state, dmg);
   state.speed *= 0.45;
   gator.cool = 6;

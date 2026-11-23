@@ -119,16 +119,19 @@ export class MeshBuilder {
     }
     for (let i = 0; i < seg; i++) this.tri(apex, ring[i], ring[(i+1)%seg]);
   }
-  // open cone: apex at origin pointing down (-Y), base radius r at y=-len
-  coneDown(r, len, c, seg = 14) {
-    const apex = this.vert(0, 0, 0, [c[0], c[1], c[2], 0.02], 0, -1, 0);
+  // open cone: apex at origin pointing down (-Y), base radius r at y=-len.
+  // Alpha is a parameter so a beam can be built as layers: a wide faint halo,
+  // a mid cone, and a narrow bright core — one flat cone reads as a pale triangle.
+  coneDownAlpha(r, len, c, aRing, aApex = 0.02, seg = 14) {
+    const apex = this.vert(0, 0, 0, [c[0], c[1], c[2], aApex], 0, -1, 0);
     const ring = [];
     for (let i = 0; i < seg; i++) {
       const a = (i / seg) * Math.PI * 2;
-      ring.push(this.vert(Math.cos(a)*r, -len, Math.sin(a)*r, [c[0], c[1], c[2], 0.10], Math.cos(a)*0.4, -0.6, Math.sin(a)*0.4));
+      ring.push(this.vert(Math.cos(a)*r, -len, Math.sin(a)*r, [c[0], c[1], c[2], aRing], Math.cos(a)*0.4, -0.6, Math.sin(a)*0.4));
     }
     for (let i = 0; i < seg; i++) this.tri(apex, ring[i], ring[(i+1)%seg]);
   }
+  coneDown(r, len, c, seg = 14) { this.coneDownAlpha(r, len, c, 0.10, 0.02, seg); }
   build(gl) {
     const mesh = { count: this.idx.length };
     mesh.vbo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vbo);
@@ -361,6 +364,25 @@ export function buildWorldMeshes(gl, world) {
 }
 
 // ---------------------------------------------------------------- entity meshes (unit, origin-centered)
+// A real 3-blade airboat prop: three tapered blades at 120 degrees in the
+// vertical XY plane plus a hub disc. The old vertical+horizontal boxes read
+// from behind as a flat "+" sign, not a fan.
+function prop3(mb, z) {
+  const cx = 0, cy = 2.2, len = 1.05, hw = 0.17;
+  const blade = [0.82, 0.82, 0.78, 1];
+  for (const deg of [90, 210, 330]) {
+    const a = deg * Math.PI / 180;
+    const dx = Math.cos(a), dy = Math.sin(a), px = -dy, py = dx;
+    mb.quad(
+      [cx + px*hw, cy + py*hw, z],
+      [cx + dx*len + px*hw*0.55, cy + dy*len + py*hw*0.55, z],
+      [cx + dx*len - px*hw*0.55, cy + dy*len - py*hw*0.55, z],
+      [cx - px*hw, cy - py*hw, z],
+      blade);
+  }
+  mb.discXY(cx, cy, z - 0.02, 0.34, [0.22, 0.22, 0.20, 1]);
+}
+
 export function buildEntityMeshes(gl) {
   // airboat "Mudskipper": hull + vertical rear fan + seat + bow light
   const ab = new MeshBuilder();
@@ -369,8 +391,7 @@ export function buildEntityMeshes(gl) {
   ab.box(0, 1.4, 1.6, 1.4, 0.8, 1.2, [0.30, 0.22, 0.14, 1]); // seat
   ab.box(0, 2.2, -2.7, 2.7, 2.7, 0.25, [0.5, 0.48, 0.46, 1]); // fan frame (vertical)
   ab.box(0, 2.2, -2.55, 2.2, 2.2, 0.12, [0.32, 0.32, 0.30, 1]); // fan disc (dark, so the blades read)
-  ab.box(0, 2.2, -2.95, 0.35, 2.0, 0.14, [0.78, 0.78, 0.74, 1]); // fan blade vertical (behind frame, visible from the rear)
-  ab.box(0, 2.2, -2.95, 2.0, 0.35, 0.14, [0.78, 0.78, 0.74, 1]); // fan blade horizontal
+  prop3(ab, -2.95); // 3-blade prop + hub, behind the frame, visible from the rear
   ab.box(0, 1.5, 2.9, 0.5, 0.4, 0.5, [1.0, 0.95, 0.6, 1]); // bow light
   const airboat = ab.build(gl);
 
@@ -380,8 +401,7 @@ export function buildEntityMeshes(gl) {
   pb.box(0, 1.4, 1.6, 1.4, 0.8, 1.2, [0.10, 0.15, 0.35, 1]);
   pb.box(0, 2.2, -2.7, 2.7, 2.7, 0.25, [0.5, 0.5, 0.5, 1]); // fan frame (vertical)
   pb.box(0, 2.2, -2.55, 2.2, 2.2, 0.12, [0.35, 0.35, 0.33, 1]); // fan disc
-  pb.box(0, 2.2, -2.95, 0.35, 2.0, 0.14, [0.78, 0.78, 0.74, 1]);
-  pb.box(0, 2.2, -2.95, 2.0, 0.35, 0.14, [0.78, 0.78, 0.74, 1]);
+  prop3(pb, -2.95); // 3-blade prop + hub
   pb.box(0, 1.9, 0.5, 0.6, 0.5, 0.6, [0.1, 0.3, 1.0, 1]); // blue light bar
   const patrolBoat = pb.build(gl);
 
@@ -396,9 +416,16 @@ export function buildEntityMeshes(gl) {
   const truck = tr.build(gl);
 
   const gt = new MeshBuilder();
-  gt.box(0, 0.35, 0, 1.1, 0.5, 3.6, [0.10, 0.22, 0.08, 1]); // body
-  gt.box(0, 0.4, 2.4, 0.9, 0.35, 1.2, [0.12, 0.25, 0.09, 1]); // head
-  gt.box(0, 0.25, -2.8, 0.5, 0.3, 2.2, [0.09, 0.20, 0.07, 1]); // tail
+  // The old body was near-black and sat flush with the water, so only the eyes
+  // read. Now: a wider, lighter-olive body, a raised back plate, and a row of
+  // dorsal scutes along the spine — the silhouette breaks the waterline.
+  gt.box(0, 0.35, 0, 1.3, 0.5, 3.6, [0.14, 0.30, 0.10, 1]); // body (lighter olive)
+  gt.box(0, 0.62, 0, 0.75, 0.28, 3.0, [0.20, 0.40, 0.13, 1]); // raised back plate
+  for (let i = 0; i < 5; i++) {
+    gt.box(0, 0.88, -1.2 + i * 0.6, 0.2, 0.3, 0.2, [0.26, 0.48, 0.16, 1]); // dorsal scutes
+  }
+  gt.box(0, 0.4, 2.4, 0.9, 0.35, 1.2, [0.16, 0.33, 0.11, 1]); // head
+  gt.box(0, 0.25, -2.8, 0.5, 0.3, 2.2, [0.12, 0.27, 0.09, 1]); // tail
   gt.box(-0.25, 0.62, 2.7, 0.18, 0.18, 0.18, [1.0, 0.9, 0.2, 1]); // eye L
   gt.box(0.25, 0.62, 2.7, 0.18, 0.18, 0.18, [1.0, 0.9, 0.2, 1]); // eye R
   const gator = gt.build(gl);
@@ -416,6 +443,15 @@ export function buildEntityMeshes(gl) {
   const cone = new MeshBuilder();
   cone.coneDown(9, 46, [1.0, 0.95, 0.7, 1]);
   const coneMesh = cone.build(gl);
+  // layered heli beam: a wide faint halo + a narrow bright core around the mid
+  // cone, so the FOGHORN-1 spotlight reads as a directed shaft of light with a
+  // hot center instead of one flat pale triangle.
+  const coneCoreB = new MeshBuilder();
+  coneCoreB.coneDownAlpha(3.5, 46, [1.0, 0.97, 0.8, 1], 0.34, 0.10, 14);
+  const coneCore = coneCoreB.build(gl);
+  const coneHaloB = new MeshBuilder();
+  coneHaloB.coneDownAlpha(15, 46, [1.0, 0.95, 0.7, 1], 0.045, 0.01, 14);
+  const coneHalo = coneHaloB.build(gl);
 
   // player spotlight: beam tilted forward so it reads as a searchlight, not a pillar
   const spot = new MeshBuilder();
@@ -425,6 +461,20 @@ export function buildEntityMeshes(gl) {
   const pool = new MeshBuilder();
   pool.disc(0, 0, 0, 6, [1.0, 0.95, 0.7, 0.10]);
   const poolMesh = pool.build(gl);
+
+  // dawn glitter: scattered warm flecks on the water for the pre-dawn/dawn
+  // sun-path — drawn ahead of the player when timeOfDay > 0.66 so the dawn
+  // water is not one flat dark sheet. Deterministic layout, seeded by index.
+  const glit = new MeshBuilder();
+  {
+    const grnd = (() => { let a = 4242; return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; })();
+    for (let i = 0; i < 16; i++) {
+      const gx = (grnd() * 2 - 1) * 34, gz = (grnd() * 2 - 1) * 18;
+      const gr = 0.5 + grnd() * 0.9;
+      glit.disc(gx, 0, gz, gr, [1.0, 0.72, 0.32, 0.42 + grnd() * 0.2], 10);
+    }
+  }
+  const glitterMesh = glit.build(gl);
 
   // gator eye glow (emissive, drawn at each gator's head)
   const eye = new MeshBuilder();
@@ -442,7 +492,7 @@ export function buildEntityMeshes(gl) {
   boat.box(0, 0.9, -0.6, 1.8, 0.7, 2.2, [0.7, 0.65, 0.5, 1]);
   const trafficBoat = boat.build(gl);
 
-  return { airboat, patrolBoat, truck, gator, heli, rotor: rotorMesh, cone: coneMesh, spotCone: spotConeMesh, pool: poolMesh, eye: eyeMesh, person: personMesh, trafficBoat };
+  return { airboat, patrolBoat, truck, gator, heli, rotor: rotorMesh, cone: coneMesh, coneCore, coneHalo, spotCone: spotConeMesh, pool: poolMesh, glitter: glitterMesh, eye: eyeMesh, person: personMesh, trafficBoat };
 }
 
 // fog bank drift positions (deterministic) — low, wide, hugging the water

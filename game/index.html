@@ -45,7 +45,9 @@
   #dlg-hint { font-size: 11px; color: #9fb8c8; margin-top: 5px; clear: both; }
   #top-center { top: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; font-size: 12px; }
   #top-center span { background: rgba(5,12,18,.72); border: 1px solid rgba(255,255,255,.18); border-radius: 6px; padding: 5px 9px; }
-  #payout { top: 84px; left: 50%; transform: translateX(-50%); width: 480px; max-width: 92vw; text-align: center; display: none; }
+  #payout { top: 168px; left: 12px; transform: none; width: 420px; max-width: 92vw; text-align: left; display: none; }
+  #legend { margin-top: 6px; font-size: 11px; color: #cfe3ee; line-height: 1.7; }
+  #legend .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0 3px 0 8px; vertical-align: -1px; }
   #payout-title { font-size: 20px; font-weight: 900; color: #ffd94a; }
   #payout-body { font-size: 14px; margin-top: 6px; line-height: 1.7; }
   .overlay { position: fixed; inset: 0; z-index: 10; background: rgba(3, 7, 12, 0.82); display: none; overflow-y: auto; padding: 40px 20px; }
@@ -104,6 +106,7 @@
   <div class="bar-row"><span>ARMOR</span><div class="bar"><div id="armor-fill"></div></div></div>
   <div class="bar-row"><span id="speed-num">0 mph</span><span id="cargo-num">CARGO — empty</span></div>
   <div id="crew"><span id="crew-delia">1 · DELIA — field repair READY</span><span id="crew-sable">2 · SABLE — reveal patrols READY</span></div>
+  <div id="legend">MAP<span class="dot" style="background:#ffc21a"></span>drop<span class="dot" style="background:#2eff8a"></span>buyer<span class="dot" style="background:#ff4040"></span>gator<span class="dot" style="background:#4aa8ff"></span>LWMP<span class="dot" style="background:#ff8a3d"></span>hideout</div>
 </div>
 
 <div id="bottom-right" class="hud">
