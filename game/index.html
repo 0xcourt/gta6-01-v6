@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BLACKWATER CIÉNAGA 3D — 12 smuggler runs through the Leonida wetlands</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #060a12; font-family: 'Segoe UI', Arial, sans-serif; color: #eef2f5; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .hud { position: fixed; z-index: 5; pointer-events: none; text-shadow: 0 1px 3px rgba(0,0,0,.9); }
+  .panel { background: rgba(5, 12, 18, 0.72); border: 1px solid rgba(255,255,255,.18); border-radius: 8px; padding: 8px 12px; backdrop-filter: blur(2px); }
+  #top-left { top: 12px; left: 12px; max-width: 460px; }
+  #hud-mission { font-size: 17px; font-weight: 800; color: #ffd94a; letter-spacing: .4px; }
+  #hud-objective { font-size: 14px; margin-top: 3px; color: #fff; }
+  #stage-bar { height: 7px; background: rgba(255,255,255,.18); border-radius: 4px; margin-top: 7px; overflow: hidden; }
+  #stage-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #ffb020, #ffd94a); }
+  #stage-text { font-size: 11px; color: #cfe3ee; margin-top: 3px; }
+  #top-right { top: 12px; right: 12px; text-align: right; min-width: 250px; }
+  #hud-cash { font-size: 30px; font-weight: 900; color: #7dff9a; line-height: 1; }
+  #hud-respect { font-size: 13px; color: #ffd94a; margin-top: 2px; }
+  #hud-heat { font-size: 12px; color: #ff9a5a; }
+  #hud-wanted { font-size: 26px; letter-spacing: 4px; margin-top: 2px; }
+  #bottom-left { bottom: 12px; left: 12px; min-width: 300px; }
+  .bar-row { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-top: 4px; }
+  .bar { flex: 1; height: 10px; background: rgba(255,255,255,.15); border-radius: 5px; overflow: hidden; }
+  .bar > div { height: 100%; }
+  #health-fill { background: #3ddc5a; width: 100%; }
+  #armor-fill { background: #4aa8ff; width: 100%; }
+  #speed-num { font-size: 26px; font-weight: 900; }
+  #vehicle-name { font-size: 13px; color: #9fd8ff; font-weight: 700; }
+  #cargo-num { font-size: 13px; color: #ffc21a; }
+  #crew { margin-top: 6px; font-size: 12px; }
+  #crew span { display: inline-block; margin-right: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,.08); color: #bbb; }
+  #crew span.ready { color: #7dff9a; background: rgba(60,220,90,.15); }
+  #bottom-right { bottom: 12px; right: 12px; text-align: right; }
+  #minimap { border-radius: 50%; border: 2px solid rgba(255,255,255,.45); background: #0a2530; }
+  #dispatch { margin-top: 8px; text-align: left; font-size: 12px; line-height: 1.5; color: #cfe3ee; display: none; max-width: 300px; }
+  #bottom-center { bottom: 12px; left: 50%; transform: translateX(-50%); text-align: center; width: 520px; max-width: 92vw; }
+  #toast { font-size: 14px; color: #fff; background: rgba(5,12,18,.78); border: 1px solid rgba(255,217,74,.5); border-radius: 8px; padding: 7px 12px; display: none; }
+  #dialogue { margin-top: 8px; display: none; text-align: left; background: rgba(5,12,18,.85); border: 1px solid rgba(255,255,255,.25); border-radius: 8px; padding: 10px 12px; }
+  #dlg-face { float: left; width: 44px; height: 44px; border-radius: 50%; background: #6e5a2e; color: #fff; font-size: 24px; font-weight: 900; text-align: center; line-height: 44px; margin-right: 10px; }
+  #dlg-name { font-weight: 800; color: #ffd94a; font-size: 13px; }
+  #dlg-text { font-size: 14px; margin-top: 2px; }
+  #dlg-hint { font-size: 11px; color: #9fb8c8; margin-top: 5px; clear: both; }
+  #top-center { top: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; font-size: 12px; }
+  #top-center span { background: rgba(5,12,18,.72); border: 1px solid rgba(255,255,255,.18); border-radius: 6px; padding: 5px 9px; }
+  #payout { top: 84px; left: 50%; transform: translateX(-50%); width: 480px; max-width: 92vw; text-align: center; display: none; }
+  #payout-title { font-size: 20px; font-weight: 900; color: #ffd94a; }
+  #payout-body { font-size: 14px; margin-top: 6px; line-height: 1.7; }
+  .overlay { position: fixed; inset: 0; z-index: 10; background: rgba(3, 7, 12, 0.82); display: none; overflow-y: auto; padding: 40px 20px; }
+  .overlay .box { max-width: 640px; margin: 0 auto; background: #0c1620; border: 1px solid rgba(255,255,255,.25); border-radius: 12px; padding: 22px 26px; }
+  .overlay h1 { font-size: 22px; color: #ffd94a; margin-bottom: 4px; }
+  .overlay h2 { font-size: 15px; color: #9fd8ff; margin: 14px 0 6px; }
+  .overlay p { font-size: 14px; line-height: 1.6; color: #dfe9ef; }
+  .mi { padding: 9px 10px; border: 1px solid rgba(255,255,255,.15); border-radius: 8px; margin-top: 8px; font-size: 13px; line-height: 1.45; }
+  .mi.done { opacity: .55; }
+  .mi.active { border-color: #ffd94a; background: rgba(255,217,74,.08); }
+  .mi span { color: #9fb8c8; font-size: 12px; }
+  button { pointer-events: auto; cursor: pointer; background: #ffd94a; color: #111; border: 0; border-radius: 7px; padding: 9px 16px; font-size: 14px; font-weight: 800; margin: 10px 8px 0 0; }
+  button.ghost { background: rgba(255,255,255,.14); color: #fff; }
+  #controls-hint { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 4; font-size: 11px; color: rgba(255,255,255,.65); text-shadow: 0 1px 2px #000; display: none; }
+  #shot-label { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 4; font-size: 11px; color: rgba(255,255,255,.5); display: none; }
+  #errlog { position: fixed; bottom: 0; left: 0; z-index: 50; color: #ff8080; font-size: 11px; max-width: 90vw; }
+  #title-card { position: fixed; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, rgba(6,14,22,.25), rgba(3,6,10,.88)); pointer-events: none; }
+  #title-card .inner { text-align: center; max-width: 760px; padding: 20px; }
+  #title-card h1 { font-size: 52px; font-weight: 900; letter-spacing: 2px; color: #ffd94a; text-shadow: 0 3px 18px rgba(0,0,0,.9); }
+  #title-card h2 { font-size: 20px; color: #bfe6ff; margin-top: 6px; font-weight: 600; }
+  #title-card p { font-size: 14px; color: #dfe9ef; margin-top: 12px; line-height: 1.6; }
+  #title-card .go { display: inline-block; margin-top: 16px; font-size: 15px; font-weight: 800; background: #ffd94a; color: #111; padding: 10px 22px; border-radius: 8px; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="title-card"><div class="inner">
+  <h1>BLACKWATER<br>CIÉNAGA 3D</h1>
+  <h2>12 smuggler runs through the Leonida wetlands</h2>
+  <p>Rook Calloway, ex-airboat tour guide turned smuggler, runs contraband through the Blackwater marsh for Mama Odette. Outrun the Wildlife &amp; Marine Patrol, dodge the gators, and move the whole stash before the dawn levee raid.</p>
+  <span class="go">Click anywhere to start — WASD drive · E interact</span>
+</div></div>
+
+<div id="top-left" class="hud panel">
+  <div id="hud-mission">BLACKWATER CIÉNAGA 3D</div>
+  <div id="hud-objective">—</div>
+  <div id="stage-bar"><div id="stage-fill"></div></div>
+  <div id="stage-text"></div>
+</div>
+
+<div id="top-right" class="hud panel">
+  <div id="hud-cash">$250</div>
+  <div id="hud-respect">Greenhorn · 0 respect</div>
+  <div id="hud-heat">HEAT 0%</div>
+  <div id="hud-wanted">— clear —</div>
+</div>
+
+<div id="top-center" class="hud">
+  <span id="time-label">DUSK</span><span id="radio-label">♪ WBRZ · Swamp Blues</span><span id="shot-label"></span>
+</div>
+
+<div id="bottom-left" class="hud panel">
+  <div id="vehicle-name">ON FOOT · Rook Calloway</div>
+  <div class="bar-row"><span>HP</span><div class="bar"><div id="health-fill"></div></div></div>
+  <div class="bar-row"><span>ARMOR</span><div class="bar"><div id="armor-fill"></div></div></div>
+  <div class="bar-row"><span id="speed-num">0 mph</span><span id="cargo-num">CARGO — empty</span></div>
+  <div id="crew"><span id="crew-delia">1 · DELIA — field repair READY</span><span id="crew-sable">2 · SABLE — reveal patrols READY</span></div>
+</div>
+
+<div id="bottom-right" class="hud">
+  <canvas id="minimap" width="168" height="168"></canvas>
+  <div id="dispatch" class="panel"></div>
+</div>
+
+<div id="bottom-center" class="hud">
+  <div id="toast"></div>
+  <div id="dialogue"><div id="dlg-face">R</div><div id="dlg-name"></div><div id="dlg-text"></div><div id="dlg-hint">Press E to continue…</div></div>
+</div>
+
+<div id="payout" class="hud panel">
+  <div id="payout-title">DAWN FINALE</div>
+  <div id="payout-body"></div>
+</div>
+
+<div id="pause" class="overlay"><div class="box">
+  <h1>PAUSED — Blackwater Ciénaga</h1>
+  <p>Rook Calloway · Mudskipper Dock · Ciénaga Landing. The fog waits for no one.</p>
+  <button id="btn-resume">Resume</button>
+  <button id="btn-save">Save game</button>
+  <button id="btn-load">Load game</button>
+  <button id="btn-missions">Missions (M)</button>
+  <button id="btn-restart" class="ghost">Restart night</button>
+  <h2>Controls</h2>
+  <p>WASD drive / walk · Shift sprint · Space handbrake · E enter / exit vehicle, talk, advance dialogue · F spotlight · G workshop (at Mudskipper Dock) · M missions · Q radio station · 1 Delia repair · 2 Sable reveal · R back to the levee road · Esc pause.</p>
+  <h2>Crew</h2>
+  <p><b>Wrench Delia Voss</b> — mechanic, field repair (key 1). <b>Sable June Park</b> — lookout, reveals patrols and gator zones on the minimap (key 2). <b>Mama Odette</b> — fence at The Gator's Grin, gives the jobs.</p>
+</div></div>
+
+<div id="missions" class="overlay"><div class="box">
+  <h1>MISSIONS — 12 runs, 3 acts</h1>
+  <p>Click a run to start it. Act I Dusk · Act II Midnight · Act III Pre-dawn.</p>
+  <div id="mission-list"></div>
+  <button onclick="document.getElementById('missions').style.display='none'">Close</button>
+</div></div>
+
+<div id="workshop" class="overlay"><div class="box">
+  <h1>MUDSKIPPER DOCK — Workshop</h1>
+  <p>Delia's upgrades. Cash only, no questions asked.</p>
+  <div id="shop-list"></div>
+  <button onclick="document.getElementById('workshop').style.display='none'">Close</button>
+</div></div>
+
+<div id="errlog"></div>
+<script type="module" src="main.js"></script>
+<script>
+  // title card fades on first interaction (and auto-hides for ?shot= presets)
+  const tc = document.getElementById('title-card');
+  const hide = () => { tc.style.transition = 'opacity .6s'; tc.style.opacity = '0'; setTimeout(() => tc.remove(), 700); };
+  window.addEventListener('pointerdown', hide, { once: true });
+  window.addEventListener('keydown', hide, { once: true });
+  if (new URLSearchParams(location.search).get('shot')) hide();
+</script>
+</body>
+</html>
